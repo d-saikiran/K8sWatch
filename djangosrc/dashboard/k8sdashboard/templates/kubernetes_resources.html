@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Kubernetes Resources</title>
+</head>
+<body>
+    <h1>Resources in Namespace: {{ namespace }}</h1>
+        
+        {% for dictionary in resources %}
+                {% for key, value in dictionary.items %}
+                    <ul>
+                    {% if value %}
+                        <h3>{{ key|title }}</h3>
+                        {% for res in value %}
+                            <li>{{ res.metadata.name }}</li>
+                        {% endfor %}
+                    {% endif %}
+                    </ul>
+                {% endfor %}
+        {% endfor %}
+</body>
+</html>

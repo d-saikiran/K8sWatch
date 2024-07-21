@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Select Namespace</title>
+</head>
+<body>
+    <form method="post" action="{% url 'kubernetes_resources' %}">
+        {% csrf_token %}
+        <label for="namespace">Select Namespace to see resources:</label>
+        <select name="namespace" id="namespace">
+            <option value="default">default</option>
+            <!-- Add options dynamically if you have a list of namespaces -->
+        </select>
+        <br>
+        <input type="submit" value="Show">
+    </form>
+</body>
+</html>

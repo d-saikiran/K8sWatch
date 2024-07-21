@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: django-backend
+  labels:
+    app: django-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: django-backend
+  template:
+    metadata:
+      labels:
+        app: django-backend
+    spec:
+      containers:
+        - name: django-backend-container
+          imagePullPolicy: IfNotPresent
+          image: k8smonitor:v1
+          #command: ["./manage.py", "runserver", "0.0.0.0:8000"]
+          ports:
+          - containerPort: 8000
