@@ -1,3 +1,4 @@
+#Open issue: https://github.com/kubernetes-client/python/issues/1617 Implemented WA
 from django.shortcuts import render
 from django.http import HttpResponse, HttpResponseRedirect
 # Create your views here.
@@ -5,7 +6,10 @@ from kubernetes import client, config
 from kubernetes.client import ApiException
 # Load Kubernetes configuration
 from django.shortcuts import render
-
+import json
+import datetime
+import yaml
+import subprocess
 
 #Get method for resources
 def show_resources(response):
@@ -49,69 +53,6 @@ def show_resources(response):
                     res+=f"\n- {item.metadata.namespace}/{item.metadata.name}"
 
     return HttpResponse(res,content_type="text/plain")
-
-def kubernetes_resources(request):
-   if request.method == 'POST':
-       namespace = request.POST.get('namespace')
-
-       # Load Kubernetes config from default location
-       config.load_incluster_config()
-
-       # Create a Kubernetes API client
-       v1 = client.CoreV1Api()
-       core_v1 = client.CoreV1Api()
-       apps_v1 = client.AppsV1Api()
-       batch_v1 = client.BatchV1Api()
-       networking_v1 = client.NetworkingV1Api()
-       rbac_v1 = client.RbacAuthorizationV1Api()
-       policy_v1beta1 = client.PolicyV1Api()
-       custom_objects_api = client.CustomObjectsApi()
-
-       try:
-           # Retrieve resources (e.g., pods) in the selected namespace
-           pods = core_v1.list_namespaced_pod(namespace=namespace)
-           services = core_v1.list_namespaced_service(namespace=namespace)
-           deployments = apps_v1.list_namespaced_deployment(namespace=namespace)
-           replicasets = apps_v1.list_namespaced_replica_set(namespace=namespace)
-           statefulsets = apps_v1.list_namespaced_stateful_set(namespace=namespace)
-           daemonsets = apps_v1.list_namespaced_daemon_set(namespace=namespace)
-           jobs = batch_v1.list_namespaced_job(namespace=namespace)
-           cronjobs = batch_v1.list_namespaced_cron_job(namespace=namespace)
-           configmaps = core_v1.list_namespaced_config_map(namespace=namespace)
-           secrets = core_v1.list_namespaced_secret(namespace=namespace)
-           serviceaccounts = v1.list_namespaced_service_account(namespace=namespace)
-           pvcs = core_v1.list_namespaced_persistent_volume_claim(namespace=namespace)
-           # Add more API calls as needed for other resources (services, deployments, etc.)
-
-           # Prepare data to pass to template
-           context = {
-               'namespace': namespace,
-               'resources': [
-                   {'pods': pods.items},
-                   {'services': services.items},
-                   {'deployments': deployments.items},
-                   {'replicasets': replicasets.items},
-                   {'statefulsets': statefulsets.items},
-                   {'daemonsets': daemonsets.items},
-                   {'jobs': jobs.items},
-                   {'cronjobs': cronjobs.items},
-                   {'configmaps': configmaps.items},
-                   {'secrets': secrets.items},
-                   {'serviceaccounts': serviceaccounts.items},
-                   {'pvcs': pvcs.items},
-               ],  # Example with pods, adjust for other resource types
-           }
-
-           return render(request, 'kubernetes_resources.html', context)
-
-       except Exception as e:
-           error_message = f"Error retrieving resources: {str(e)}"
-           return render(request, 'error.html', {'error_message': error_message})
-
-   else:
-       # Handle GET request or initial load
-       return render(request, 'kubernetes_form.html')
-
 
 def get_all_resources(resource_name):
     config.load_incluster_config()
@@ -179,3 +120,118 @@ def get_all_resources(resource_name):
     except ApiException as e:
         print(f"Exception when calling Kubernetes API: {e}")
         return None
+def remove_null_values(obj):
+    """
+    Recursively remove keys with null values from a dictionary.
+    """
+    if isinstance(obj, dict):
+        return {k: remove_null_values(v) for k, v in obj.items() if v is not None}
+    elif isinstance(obj, list):
+        return [remove_null_values(i) for i in obj]
+    else:
+        return obj
+def convert_to_dict_with_metadata(obj, api_version, kind, clean_yaml):
+    obj_dict = obj.to_dict()
+    obj_dict['apiVersion'] = api_version
+    obj_dict['kind'] = kind
+    if clean_yaml:
+        obj_dict = remove_null_values(obj_dict)
+    return obj_dict
+
+def kubernetes_resources(request):
+   if request.method == 'POST':
+       namespace = request.POST.get('namespace')
+
+       # Load Kubernetes config from default location
+       #config.load_incluster_config()
+       config.load_kube_config()
+       # Create a Kubernetes API client
+       v1 = client.CoreV1Api()
+       core_v1 = client.CoreV1Api()
+       apps_v1 = client.AppsV1Api()
+       batch_v1 = client.BatchV1Api()
+       networking_v1 = client.NetworkingV1Api()
+       rbac_v1 = client.RbacAuthorizationV1Api()
+       policy_v1beta1 = client.PolicyV1Api()
+       custom_objects_api = client.CustomObjectsApi()
+
+       try:
+           # Retrieve resources (e.g., pods) in the selected namespace
+           pods = core_v1.list_namespaced_pod(namespace=namespace)
+           services = core_v1.list_namespaced_service(namespace=namespace)
+           deployments = apps_v1.list_namespaced_deployment(namespace=namespace)
+           replicasets = apps_v1.list_namespaced_replica_set(namespace=namespace)
+           statefulsets = apps_v1.list_namespaced_stateful_set(namespace=namespace)
+           daemonsets = apps_v1.list_namespaced_daemon_set(namespace=namespace)
+           jobs = batch_v1.list_namespaced_job(namespace=namespace)
+           cronjobs = batch_v1.list_namespaced_cron_job(namespace=namespace)
+           configmaps = core_v1.list_namespaced_config_map(namespace=namespace)
+           secrets = core_v1.list_namespaced_secret(namespace=namespace)
+           serviceaccounts = v1.list_namespaced_service_account(namespace=namespace)
+           pvcs = core_v1.list_namespaced_persistent_volume_claim(namespace=namespace)
+           # Add more API calls as needed for other resources (services, deployments, etc.)
+
+           # Prepare data to pass to template
+           context = {
+               'namespace': namespace,
+               'resources': [
+                   {'pods': pods.items},
+                   {'services': services.items},
+                   {'deployments': deployments.items},
+                   {'replicasets': replicasets.items},
+                   {'statefulsets': statefulsets.items},
+                   {'daemonsets': daemonsets.items},
+                   {'jobs': jobs.items},
+                   {'cronjobs': cronjobs.items},
+                   {'configmaps': configmaps.items},
+                   {'secrets': secrets.items},
+                   {'serviceaccounts': serviceaccounts.items},
+                   {'pvcs': pvcs.items},
+               ],  # Example with pods, adjust for other resource types
+           }
+           if 'download' in request.POST:
+               config_maps = v1.list_namespaced_config_map(namespace)
+               secrets = v1.list_namespaced_secret(namespace)
+               services = v1.list_namespaced_service(namespace)
+               pods = v1.list_namespaced_pod(namespace)
+               deployments = client.AppsV1Api().list_namespaced_deployment(namespace)
+
+               clean_yaml = request.POST.get('clean_yaml') == 'true'
+
+               # Convert the dictionary to YAML format
+               # Convert objects to dictionaries with metadata
+               k8s_objects = []
+               k8s_objects.extend([convert_to_dict_with_metadata(obj, 'v1', 'ConfigMap', clean_yaml) for obj in config_maps.items])
+               k8s_objects.extend([convert_to_dict_with_metadata(obj, 'v1', 'Secret', clean_yaml) for obj in secrets.items])
+               k8s_objects.extend([convert_to_dict_with_metadata(obj, 'v1', 'Service', clean_yaml) for obj in services.items])
+               k8s_objects.extend([convert_to_dict_with_metadata(obj, 'v1', 'Pod', clean_yaml) for obj in pods.items])
+               k8s_objects.extend([convert_to_dict_with_metadata(obj, 'apps/v1', 'Deployment', clean_yaml) for obj in deployments.items])
+
+               yaml_documents = "\n---\n".join([yaml.dump(obj, default_flow_style=False) for obj in k8s_objects])
+               response = HttpResponse(yaml_documents, content_type='application/x-yaml')
+               response['Content-Disposition'] = f'attachment; filename={namespace}_k8s_objects.yaml'
+
+               return response
+           return render(request, 'kubernetes_resources.html', context)
+
+       except Exception as e:
+           error_message = f"Error retrieving resources: {str(e)}"
+           return render(request, 'error.html', {'error_message': error_message})
+
+   else:
+       # Handle GET request or initial load
+       namespaces = get_namespaces()
+       return render(request, 'kubernetes_form.html', {'namespaces': namespaces})
+def get_namespaces():
+    config.load_kube_config()
+    v1 = client.CoreV1Api()
+    namespaces = v1.list_namespace()
+    return [ns.metadata.name for ns in namespaces.items]
+def dynamic_resource_view(request,namespace,key,name):
+    try:
+        output = subprocess.run(["kubectl", "describe", key, name, "-n", namespace], stdout=subprocess.PIPE, text=True).stdout
+        output="\n".join(line.strip() for line in output.splitlines())
+        print(output)
+        return HttpResponse(output, content_type="text/plain")
+    except Exception as e:
+        render(request, 'error.html', {'error_message': e})

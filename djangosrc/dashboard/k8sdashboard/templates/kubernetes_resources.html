@@ -12,11 +12,19 @@
                     {% if value %}
                         <h3>{{ key|title }}</h3>
                         {% for res in value %}
-                            <li>{{ res.metadata.name }}</li>
+                            <a href="{{ namespace }}/{{ key }}/{{ res.metadata.name }}">
+                                <li>{{ res.metadata.name }}</li>
+                            </a>
                         {% endfor %}
                     {% endif %}
                     </ul>
                 {% endfor %}
         {% endfor %}
+        <form method="post" style="display:inline;">
+            {% csrf_token %}
+                <input type="hidden" name="namespace" value="{{ namespace }}">
+                <input type="checkbox" name="clean_yaml" value="true"> Clean YAML
+                <input type="submit" name="download" value="Download Objects">
+        </form>
 </body>
 </html>

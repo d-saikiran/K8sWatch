@@ -8,8 +8,9 @@
         {% csrf_token %}
         <label for="namespace">Select Namespace to see resources:</label>
         <select name="namespace" id="namespace">
-            <option value="default">default</option>
-            <!-- Add options dynamically if you have a list of namespaces -->
+            {% for ns in namespaces %}
+                <option value="{{ ns }}">{{ ns }}</option>
+            {% endfor %}
         </select>
         <br>
         <input type="submit" value="Show">
