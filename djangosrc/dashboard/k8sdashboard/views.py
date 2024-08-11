@@ -1,5 +1,5 @@
 #Open issue: https://github.com/kubernetes-client/python/issues/1617 Implemented WA
-from django.shortcuts import render
+from django.shortcuts import render,redirect
 from django.http import HttpResponse, HttpResponseRedirect
 # Create your views here.
 from kubernetes import client, config
@@ -10,6 +10,10 @@ import json
 import datetime
 import yaml
 import subprocess
+
+# Load Kubernetes config from default location
+config.load_incluster_config()
+#config.load_kube_config()
 
 #Get method for resources
 def show_resources(response):
@@ -55,7 +59,6 @@ def show_resources(response):
     return HttpResponse(res,content_type="text/plain")
 
 def get_all_resources(resource_name):
-    config.load_incluster_config()
     # Create an API client
     v1 = client.CoreV1Api()
     # Initialize the API clients
@@ -142,9 +145,6 @@ def kubernetes_resources(request):
    if request.method == 'POST':
        namespace = request.POST.get('namespace')
 
-       # Load Kubernetes config from default location
-       #config.load_incluster_config()
-       config.load_kube_config()
        # Create a Kubernetes API client
        v1 = client.CoreV1Api()
        core_v1 = client.CoreV1Api()
@@ -223,15 +223,57 @@ def kubernetes_resources(request):
        namespaces = get_namespaces()
        return render(request, 'kubernetes_form.html', {'namespaces': namespaces})
 def get_namespaces():
-    config.load_kube_config()
     v1 = client.CoreV1Api()
     namespaces = v1.list_namespace()
     return [ns.metadata.name for ns in namespaces.items]
 def dynamic_resource_view(request,namespace,key,name):
     try:
         output = subprocess.run(["kubectl", "describe", key, name, "-n", namespace], stdout=subprocess.PIPE, text=True).stdout
-        output="\n".join(line.strip() for line in output.splitlines())
+        #output="\n".join(line.strip() for line in output.splitlines())
         print(output)
-        return HttpResponse(output, content_type="text/plain")
+        #return HttpResponse(output, content_type="text/plain")
+        return render(request, 'kubernetes_describe.html', {'output': output})
     except Exception as e:
-        render(request, 'error.html', {'error_message': e})
+        return render(request, 'error.html', {'error_message': e})
+
+def get_yaml(request,namespace,key,name):
+    error_message = None
+    success_message = None
+
+    if request.method == 'POST':
+        yaml_content = request.POST.get('yaml_content','')
+
+        # Basic validation
+        if not yaml_content.strip():
+            error_message = "YAML content cannot be empty."
+        else:
+            # Perform YAML validation using kubectl dry run
+            try:
+                result = subprocess.run(
+                    ['kubectl', 'apply', '-f', '-', '--dry-run=client'],
+                    input=yaml_content,
+                    text=True,
+                    capture_output=True,
+                    check=True
+                )
+                # Validation successful
+                subprocess.run(
+                    ['kubectl', 'apply', '-f', '-'],
+                    input=yaml_content,
+                    text=True,
+                    capture_output=True,
+                    check=True
+                )
+                success_message = "YAML content is valid and saved."
+            except subprocess.CalledProcessError as e:
+                error_message = f'Error validating YAML: {e.stderr}'
+            except Exception as e:
+                error_message = f'Unexpected error: {str(e)}'
+
+    # Render the form
+    yaml_content=subprocess.run(["kubectl", "get", key, name, "-n", namespace,"-o", "yaml"], stdout=subprocess.PIPE, text=True).stdout
+    return render(request, 'kubernetes_manifest.html', {
+        'yaml_content': yaml_content,
+        'error_message': error_message,
+        'success_message': success_message
+    })

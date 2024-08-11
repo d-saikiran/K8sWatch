@@ -17,7 +17,7 @@ spec:
       containers:
         - name: django-backend-container
           imagePullPolicy: IfNotPresent
-          image: k8smonitor:v1
+          image: dsaikiran/k8smonitor:v1
           #command: ["./manage.py", "runserver", "0.0.0.0:8000"]
           ports:
           - containerPort: 8000

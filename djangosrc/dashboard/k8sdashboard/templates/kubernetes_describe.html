@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Get YAML</title>
+</head>
+<body>
+    <h1>Describe output</h1>
+    <pre><code>{{ output|safe }}</code></pre>
+    <form action="{{ request.get_full_path }}manifest" method="get">
+        <button type="submit">Update Object</button>
+    </form>
+</body>
+</html>
