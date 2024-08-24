@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Migrate to Another Cluster</title>
+</head>
+<body>
+    <h1>Migrate Resources from Namespace: {{ namespace }}</h1>
+    
+    <form action="{% url 'perform_migration' %}" method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="hidden" name="namespace" value="{{ namespace }}">
+        <label for="kubeconfig">Upload Target Cluster Kubeconfig:</label>
+        <input type="file" name="kubeconfig" required>
+        <br>
+        <label for="target_namespace">Target Namespace:</label>
+        <input type="text" name="target_namespace" id="target_namespace" value="{{ namespace }}" required><br>
+        <input type="submit" value="Migrate">
+    </form>
+</body>
+</html>

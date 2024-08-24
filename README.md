@@ -1,11 +1,12 @@
 # K8sWatch
 ## Description
-Django application that uses Kubernetes python client, kubectl to monitor Kubernetes objects in cluster
+Django application that uses Kubernetes python client, kubectl to manage Kubernetes objects
 ## Features
 - List objects
 - Update objects
 - Download objects
 - See describe output for objects
+- Migrate Kubernetes objects to another cluster or namespace
 ## Installation
 - Create deployment with ```kubectl apply -f deployment.yaml```
 Note: Deployment object in above uses default ServiceAccount in namespace that it is deployed in.

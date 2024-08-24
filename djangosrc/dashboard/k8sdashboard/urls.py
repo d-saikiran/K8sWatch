@@ -5,4 +5,6 @@ urlpatterns = [
     path("", views.kubernetes_resources, name='kubernetes_resources'),
     path("<str:namespace>/<str:key>/<str:name>/", views.dynamic_resource_view, name="dynamic_resource"),
     path("<str:namespace>/<str:key>/<str:name>/manifest/", views.get_yaml, name="get_yaml"),
+    path('migrate/', views.migrate_to_cluster, name='migrate_to_cluster'),
+    path('perform_migration/', views.perform_migration, name='perform_migration'),
 ]

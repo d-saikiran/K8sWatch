@@ -26,5 +26,9 @@
                 <input type="checkbox" name="clean_yaml" value="true"> Clean YAML
                 <input type="submit" name="download" value="Download Objects">
         </form>
+        <form action="{% url 'migrate_to_cluster' %}" method="get" style="display:inline;">
+            <input type="hidden" name="namespace" value="{{ namespace }}">
+            <input type="submit" value="Migrate to Another Cluster">
+        </form>
 </body>
 </html>

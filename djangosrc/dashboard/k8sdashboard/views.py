@@ -10,6 +10,9 @@ import json
 import datetime
 import yaml
 import subprocess
+from django.views.decorators.csrf import csrf_exempt
+import os
+import tempfile
 
 # Load Kubernetes config from default location
 config.load_incluster_config()
@@ -277,3 +280,66 @@ def get_yaml(request,namespace,key,name):
         'error_message': error_message,
         'success_message': success_message
     })
+def migrate_to_cluster(request):
+    namespace = request.GET.get('namespace')
+    return render(request, 'migrate.html', {'namespace': namespace})
+
+@csrf_exempt
+def perform_migration(request):
+    if request.method == 'POST':
+        namespace = request.POST.get('namespace')
+        target_namespace = request.POST.get('target_namespace')
+        kubeconfig = request.FILES['kubeconfig']
+        with tempfile.NamedTemporaryFile(delete=False) as temp_kubeconfig:
+            for chunk in kubeconfig.chunks():
+                temp_kubeconfig.write(chunk)
+            temp_kubeconfig_path = temp_kubeconfig.name
+        v1 = client.CoreV1Api()
+        v1_apps = client.AppsV1Api()
+        resources_to_migrate = {
+            'pods': v1.list_namespaced_pod(namespace),
+            'services': v1.list_namespaced_service(namespace),
+            'configmaps': v1.list_namespaced_config_map(namespace),
+            'secrets': v1.list_namespaced_secret(namespace),
+            'deployments': v1_apps.list_namespaced_deployment(namespace),
+        }
+        config.load_kube_config(config_file=temp_kubeconfig_path)
+        v1_target = client.CoreV1Api()
+        v1_apps_target = client.AppsV1Api()
+        for resource_type, resource_list in resources_to_migrate.items():
+            for resource in resource_list.items:
+                resource_yaml = client.ApiClient().sanitize_for_serialization(resource)
+                resource_yaml.pop('status', None)
+                resource_yaml['metadata'].pop('resourceVersion', None)
+                # Remove fields that should not be carried over
+                resource_yaml.pop('status', None)
+                resource_yaml['metadata'].pop('resourceVersion', None)
+                resource_yaml['metadata'].pop('selfLink', None)
+                resource_yaml['metadata'].pop('uid', None)
+                resource_yaml['metadata'].pop('creationTimestamp', None)
+                resource_yaml['metadata'].pop('ownerReferences', None)
+                if 'spec' in resource_yaml and 'clusterIP' in resource_yaml['spec']:
+                    resource_yaml['spec'].pop('clusterIP', None)
+                if 'spec' in resource_yaml and 'clusterIPs' in resource_yaml['spec']:
+                    resource_yaml['spec'].pop('clusterIPs', None)
+                # Remove the namespace or change it to the target namespace
+                if 'namespace' in resource_yaml['metadata']:
+                    resource_yaml['metadata']['namespace'] = target_namespace
+                try:
+                    if resource_type == 'pods':
+                        v1_target.create_namespaced_pod(namespace=target_namespace, body=resource_yaml)
+                    elif resource_type == 'services':
+                        v1_target.create_namespaced_service(namespace=target_namespace, body=resource_yaml)
+                    elif resource_type == 'configmaps':
+                        v1_target.create_namespaced_config_map(namespace=target_namespace, body=resource_yaml)
+                    elif resource_type == 'secrets':
+                        v1_target.create_namespaced_secret(namespace=target_namespace, body=resource_yaml)
+                    elif resource_type == 'deployments':
+                            v1_apps_target.create_namespaced_deployment(namespace=target_namespace, body=resource_yaml)
+
+                except ApiException as e:
+                    print(f"Exception when migrating {resource_type}: {e}")
+        os.remove(temp_kubeconfig_path)
+        return HttpResponse("Migration completed successfully!")
+    else:
+        return HttpResponse("Invalid request method.", status=405)
