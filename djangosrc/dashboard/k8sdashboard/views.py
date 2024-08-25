@@ -15,11 +15,35 @@ import os
 import tempfile
 
 # Load Kubernetes config from default location
-config.load_incluster_config()
+#config.load_incluster_config()
 #config.load_kube_config()
 
+def setup_kubeconfig(request):
+    kubeconfig_data = request.session.get('kubeconfig_data')
+    if not kubeconfig_data:
+        return redirect('login')
+    try:
+        config.load_kube_config_from_dict(kubeconfig_data)
+    except Exception as e:
+        return redirect('login')
+
+def login(request):
+    if request.method == 'POST':
+        kubeconfig_file = request.FILES['kubeconfig']
+        try:
+            kubeconfig_data = yaml.safe_load(kubeconfig_file)
+            # Store kubeconfig in session
+            request.session['kubeconfig_data'] = kubeconfig_data
+            return redirect('kubernetes_resources')
+        except Exception as e:
+            return HttpResponse(f"Error parsing kubeconfig: {e}", status=400)
+    return render(request, 'login.html')
+
 #Get method for resources
-def show_resources(response):
+def show_resources(request):
+    setup_response = setup_kubeconfig(request)
+    if setup_response:
+        return setup_response
     res='Check'
     resource_names = [
         "pods",
@@ -145,6 +169,9 @@ def convert_to_dict_with_metadata(obj, api_version, kind, clean_yaml):
     return obj_dict
 
 def kubernetes_resources(request):
+   setup_response = setup_kubeconfig(request)
+   if setup_response:
+        return setup_response
    if request.method == 'POST':
        namespace = request.POST.get('namespace')
 
@@ -230,6 +257,9 @@ def get_namespaces():
     namespaces = v1.list_namespace()
     return [ns.metadata.name for ns in namespaces.items]
 def dynamic_resource_view(request,namespace,key,name):
+    setup_response = setup_kubeconfig(request)
+    if setup_response:
+        return setup_response
     try:
         output = subprocess.run(["kubectl", "describe", key, name, "-n", namespace], stdout=subprocess.PIPE, text=True).stdout
         #output="\n".join(line.strip() for line in output.splitlines())
@@ -240,6 +270,9 @@ def dynamic_resource_view(request,namespace,key,name):
         return render(request, 'error.html', {'error_message': e})
 
 def get_yaml(request,namespace,key,name):
+    setup_response = setup_kubeconfig(request)
+    if setup_response:
+        return setup_response
     error_message = None
     success_message = None
 
@@ -281,11 +314,17 @@ def get_yaml(request,namespace,key,name):
         'success_message': success_message
     })
 def migrate_to_cluster(request):
+    setup_response = setup_kubeconfig(request)
+    if setup_response:
+        return setup_response
     namespace = request.GET.get('namespace')
     return render(request, 'migrate.html', {'namespace': namespace})
 
 @csrf_exempt
 def perform_migration(request):
+    setup_response = setup_kubeconfig(request)
+    if setup_response:
+        return setup_response
     if request.method == 'POST':
         namespace = request.POST.get('namespace')
         target_namespace = request.POST.get('target_namespace')
